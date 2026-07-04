@@ -1,0 +1,5 @@
+# Real env files hold secrets — only *.env.example is committed
+env/*.env
+!env/*.env.example
+
+.DS_Store
