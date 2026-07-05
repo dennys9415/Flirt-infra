@@ -1,0 +1,56 @@
+# Production stack (crypto server) — standalone file, not an overlay.
+# Differences vs local: API bound to 127.0.0.1:3001 (nginx terminates TLS),
+# postgres/redis NOT exposed to the host, no adminer, restart policies.
+# Usage: docker compose -f docker-compose.prod.yml up -d
+services:
+  postgres:
+    image: postgres:16
+    env_file: env/postgres.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # 1GB box: keep postgres modest
+    shm_size: 128mb
+
+  flyway:
+    image: flyway/flyway:10
+    command: migrate
+    env_file: env/flyway.env
+    volumes:
+      - ../Flirt-api/migrations:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../Flirt-api
+      dockerfile: Dockerfile
+    env_file: env/api.env
+    ports:
+      # localhost only — nginx proxies api.thesingularitybox.com → :3001
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
