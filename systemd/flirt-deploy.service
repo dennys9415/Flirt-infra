@@ -1,0 +1,9 @@
+[Unit]
+Description=Flirt pull-based deploy (checks green main, deploys if new)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/flirt/Flirt-infra/scripts/auto-deploy.sh
+StandardOutput=append:/var/log/flirt-deploy.log
+StandardError=append:/var/log/flirt-deploy.log
